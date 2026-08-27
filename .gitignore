@@ -1,0 +1,36 @@
+# Android / Gradle build output
+.gradle/
+.kotlin/
+build/
+**/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.hprof
+
+# Native build caches
+native/target/
+.cxx/
+externalNativeBuild/
+
+# IDE and OS state
+.idea/
+*.iml
+.DS_Store
+*.swp
+*~
+
+# Local signing and developer configuration
+release.jks
+keystore.properties
+*.jks
+*.keystore
+local.properties
+
+# Archived, inactive code from the VPNHide starter. The active module uses
+# app/src/simhide via the Gradle source-set configuration.
+legacy/
+app/src/main/
+app/schemas/
