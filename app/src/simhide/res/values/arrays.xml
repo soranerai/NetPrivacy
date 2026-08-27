@@ -1,0 +1,7 @@
+<resources>
+    <!-- Recommended targets shown by LSPosed managers when enabling the module. -->
+    <string-array name="xposedscope">
+        <item>android</item>
+        <item>com.android.phone</item>
+    </string-array>
+</resources>

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SIM Hide</string>
+    <string name="module_description">Скрытие и подмена данных SIM для выбранных приложений</string>
 </resources>
