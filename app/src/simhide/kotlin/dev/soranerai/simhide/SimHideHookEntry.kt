@@ -15,7 +15,7 @@ class SimHideHookEntry : IXposedHookLoadPackage {
                 SystemServerPolicyBridge.install()
                 SystemServerSubscriptionHooks.install(lpparam.classLoader)
             }
-            // This process reads only its radio-labelled private DE policy mirror.
+            // This process obtains snapshots through the UID-gated policy provider.
             "com.android.phone" -> {
                 PhoneProcessPolicyBridge.install()
                 PhoneTelephonyHooks.install(lpparam.classLoader)

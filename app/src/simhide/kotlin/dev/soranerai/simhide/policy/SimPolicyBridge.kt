@@ -1,13 +1,14 @@
 package dev.soranerai.simhide.policy
 
 import android.os.FileObserver
+import android.net.Uri
+import android.os.SystemClock
 import dev.soranerai.simhide.model.AppSimPolicy
 import dev.soranerai.simhide.model.SimHideConfig
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 private val policyFile = File("/data/system/simhide/policy.json")
-private val phonePolicyFile = File("/data/user_de/0/com.android.phone/files/simhide_policy.json")
 
 data class PolicySnapshot(val revision: Long, val config: SimHideConfig) {
     private val policiesByUid = config.appPolicies.associateBy { it.uid }
@@ -44,27 +45,40 @@ object SystemServerPolicyBridge {
 
 }
 
-/** Used in com.android.phone. It reads only its radio-labelled DE policy mirror. */
+/** Used in com.android.phone. Policy is obtained through the UID-gated provider. */
 object PhoneProcessPolicyBridge {
-    private val installed = AtomicBoolean(false)
+    private const val POLL_INTERVAL_MS = 1_000L
+    private val policyUri = Uri.parse("content://${PolicyProvider.AUTHORITY}")
     @Volatile private var snapshot = PolicySnapshot.EMPTY
-    @Volatile private var observer: FileObserver? = null
+    @Volatile private var lastReadAt = 0L
 
-    fun current(): PolicySnapshot = snapshot
+    fun current(): PolicySnapshot {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastReadAt >= POLL_INTERVAL_MS) synchronized(this) {
+            if (now - lastReadAt >= POLL_INTERVAL_MS) {
+                lastReadAt = now
+                reload()
+            }
+        }
+        return snapshot
+    }
 
     fun install() {
-        if (!installed.compareAndSet(false, true)) return
         reload()
-        val directory = phonePolicyFile.parent ?: return
-        observer = object : FileObserver(directory, CLOSE_WRITE or MOVED_TO) {
-            override fun onEvent(event: Int, path: String?) {
-                if (path == phonePolicyFile.name) reload()
-            }
-        }.also(FileObserver::startWatching)
     }
 
     private fun reload() {
-        val candidate = runCatching { SimPolicyCodec.decode(phonePolicyFile.readText()) }.getOrNull() ?: return
-        snapshot = PolicySnapshot(snapshot.revision + 1, candidate)
+        val application = runCatching {
+            Class.forName("android.app.ActivityThread")
+                .getDeclaredMethod("currentApplication")
+                .invoke(null) as? android.content.Context
+        }.getOrNull() ?: return
+        val response = runCatching {
+            application.contentResolver.call(policyUri, PolicyProvider.METHOD_SNAPSHOT, null, null)
+        }.getOrNull() ?: return
+        val json = response.getString(PolicyProvider.KEY_JSON).orEmpty()
+        if (json.isBlank()) return
+        val candidate = runCatching { SimPolicyCodec.decode(json) }.getOrNull() ?: return
+        snapshot = PolicySnapshot(response.getLong(PolicyProvider.KEY_REVISION), candidate)
     }
 }

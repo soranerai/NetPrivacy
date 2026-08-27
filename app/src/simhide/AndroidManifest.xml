@@ -15,6 +15,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Cross-process policy transport. Access is additionally restricted by
+             Binder UID inside PolicyProvider; no policy is exposed to apps. -->
+        <provider
+            android:name=".policy.PolicyProvider"
+            android:authorities="dev.soranerai.simhide.policy"
+            android:exported="true"
+            android:directBootAware="true"
+            android:grantUriPermissions="false" />
+
         <!-- Metadata consumed by LSPosed-compatible managers. -->
         <meta-data
             android:name="xposedmodule"
