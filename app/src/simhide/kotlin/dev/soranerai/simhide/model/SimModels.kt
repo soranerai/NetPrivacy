@@ -55,10 +55,16 @@ data class SimHideConfig(
 object BuiltInSimProfiles {
     val all =
         listOf(
-            SimProfile("builtin-us-tmobile", "United States · T-Mobile", "us", "310", "260", "T-Mobile", SimNetworkType.NR, builtIn = true),
-            SimProfile("builtin-de-telekom", "Germany · Telekom", "de", "262", "01", "Telekom", SimNetworkType.LTE, builtIn = true),
-            SimProfile("builtin-gb-ee", "United Kingdom · EE", "gb", "234", "30", "EE", SimNetworkType.NR, builtIn = true),
-            SimProfile("builtin-jp-docomo", "Japan · NTT DOCOMO", "jp", "440", "10", "NTT DOCOMO", SimNetworkType.LTE, builtIn = true),
+            SimProfile("builtin-us-tmobile", "United States · T-Mobile", "us", "310", "260", "T-Mobile", SimNetworkType.NR, builtIn = true, phoneNumber = "+12025550148"),
+            SimProfile("builtin-de-telekom", "Germany · Telekom", "de", "262", "01", "Telekom", SimNetworkType.LTE, builtIn = true, phoneNumber = "+4915212345678"),
+            SimProfile("builtin-gb-ee", "United Kingdom · EE", "gb", "234", "30", "EE", SimNetworkType.NR, builtIn = true, phoneNumber = "+447911123456"),
+            SimProfile("builtin-jp-docomo", "Japan · NTT DOCOMO", "jp", "440", "10", "NTT DOCOMO", SimNetworkType.LTE, builtIn = true, phoneNumber = "+819012345678"),
+            SimProfile("builtin-fr-orange", "France · Orange", "fr", "208", "01", "Orange", SimNetworkType.LTE, builtIn = true, phoneNumber = "+33612345678"),
+            SimProfile("builtin-ca-rogers", "Canada · Rogers", "ca", "302", "720", "Rogers", SimNetworkType.LTE, builtIn = true, phoneNumber = "+14165550148"),
+            SimProfile("builtin-au-telstra", "Australia · Telstra", "au", "505", "01", "Telstra", SimNetworkType.NR, builtIn = true, phoneNumber = "+61412345678"),
+            SimProfile("builtin-nl-kpn", "Netherlands · KPN", "nl", "204", "08", "KPN", SimNetworkType.LTE, builtIn = true, phoneNumber = "+31612345678"),
+            SimProfile("builtin-pl-orange", "Poland · Orange", "pl", "260", "01", "Orange", SimNetworkType.LTE, builtIn = true, phoneNumber = "+48512123456"),
+            SimProfile("builtin-ru-mts", "Russia · MTS", "ru", "250", "01", "MTS", SimNetworkType.LTE, builtIn = true, phoneNumber = "+79211234567"),
         )
 }
 

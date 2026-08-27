@@ -50,7 +50,8 @@ class SimConfigStore(context: Context) {
         val profiles = root.optJSONArray("profiles").toProfiles()
         val policies = root.optJSONArray("appPolicies").toPolicies()
         return SimHideConfig(
-            profiles = if (profiles.any { it.builtIn }) profiles else BuiltInSimProfiles.all + profiles,
+            profiles = BuiltInSimProfiles.all.map { builtin -> profiles.firstOrNull { it.id == builtin.id && it.builtIn } ?: builtin } +
+                profiles.filterNot { it.builtIn && BuiltInSimProfiles.all.any { builtin -> builtin.id == it.id } },
             appPolicies = policies,
         )
     }

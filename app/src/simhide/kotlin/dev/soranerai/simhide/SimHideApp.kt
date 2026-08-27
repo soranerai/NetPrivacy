@@ -1,6 +1,7 @@
 package dev.soranerai.simhide
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import dev.soranerai.simhide.data.SimConfigStore
 import dev.soranerai.simhide.model.*
@@ -72,21 +75,47 @@ fun SimHideApp() {
 private fun Targets(modifier: Modifier, apps: List<InstalledApp>?, config: SimHideConfig, save: (SimHideConfig) -> Unit) {
     var query by remember { mutableStateOf("") }
     var selectedOnly by remember { mutableStateOf(false) }
+    var showSystemApps by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<InstalledApp?>(null) }
     val policies = config.appPolicies.associateBy { it.packageName to it.uid }
     val visible = apps.orEmpty().filter { app ->
         (!selectedOnly || policies.containsKey(app.packageName to app.uid)) &&
+            (showSystemApps || !app.isSystem) &&
             (query.isBlank() || app.label.contains(query, true) || app.packageName.contains(query, true))
     }
+    val selected = visible.filter { policies.containsKey(it.packageName to it.uid) }
+    val unselected = visible.filterNot { policies.containsKey(it.packageName to it.uid) }
     Column(modifier.fillMaxSize()) {
         Header("Цели", "Назначайте профиль отдельно для каждого приложения.")
+        Surface(
+            color = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.padding(20.dp, 12.dp, 20.dp, 0.dp),
+        ) {
+            Text(
+                "Важно: одного выбора здесь недостаточно. Добавьте это же приложение в scope модуля в менеджере LSPosed/Vector, затем перезапустите приложение.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(14.dp),
+            )
+        }
         OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(20.dp, 16.dp, 20.dp, 8.dp), label = { Text("Поиск приложений") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) })
-        AssistChip({ selectedOnly = !selectedOnly }, { Text(if (selectedOnly) "Только назначенные" else "Все приложения") }, Modifier.padding(horizontal = 20.dp))
+        Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selectedOnly, { selectedOnly = !selectedOnly }, label = { Text("Назначенные") })
+            FilterChip(showSystemApps, { showSystemApps = !showSystemApps }, label = { Text("Системные") })
+        }
         when {
             apps == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Загружаем приложения…") }
             visible.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Ничего не найдено") }
             else -> LazyColumn(contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(visible, key = { it.packageName }) { app -> TargetRow(app, policies[app.packageName to app.uid], config.profiles) { editing = app } }
+                if (selected.isNotEmpty()) {
+                    item(key = "selected-header") { TargetSection("Назначенные · ${selected.size}") }
+                    items(selected, key = { "selected-${it.packageName}-${it.uid}" }) { app -> TargetRow(app, policies[app.packageName to app.uid], config.profiles) { editing = app } }
+                }
+                if (unselected.isNotEmpty()) {
+                    item(key = "all-header") { TargetSection(if (selected.isEmpty()) "Приложения · ${unselected.size}" else "Остальные · ${unselected.size}") }
+                    items(unselected, key = { "all-${it.packageName}-${it.uid}" }) { app -> TargetRow(app, null, config.profiles) { editing = app } }
+                }
             }
         }
     }
@@ -96,6 +125,14 @@ private fun Targets(modifier: Modifier, apps: List<InstalledApp>?, config: SimHi
     } }
 }
 
+@Composable
+private fun TargetSection(title: String) = Text(
+    title,
+    style = MaterialTheme.typography.labelLarge,
+    color = MaterialTheme.colorScheme.primary,
+    modifier = Modifier.padding(8.dp, 10.dp, 8.dp, 2.dp),
+)
+
 @Composable private fun Header(title: String, subtitle: String) = Column(Modifier.padding(20.dp, 18.dp, 20.dp, 0.dp)) {
     Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
     Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -104,7 +141,10 @@ private fun Targets(modifier: Modifier, apps: List<InstalledApp>?, config: SimHi
 @Composable
 private fun TargetRow(app: InstalledApp, policy: AppSimPolicy?, profiles: List<SimProfile>, click: () -> Unit) = Card(onClick = click, modifier = Modifier.fillMaxWidth()) {
     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(42.dp)) { Box(contentAlignment = Alignment.Center) { Text(app.label.take(1).uppercase(), fontWeight = FontWeight.Bold) } }
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(42.dp)) {
+            if (app.icon != null) Image(app.icon.asImageBitmap(), app.label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            else Box(contentAlignment = Alignment.Center) { Text(app.label.take(1).uppercase(), fontWeight = FontWeight.Bold) }
+        }
         Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)) {
             Text(app.label, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -132,37 +172,50 @@ private fun PolicyDialog(app: InstalledApp, existing: AppSimPolicy?, profiles: L
 
 @Composable
 private fun Presets(modifier: Modifier, config: SimHideConfig, save: (SimHideConfig) -> Unit) {
-    var query by remember { mutableStateOf("") }; var editor by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }; var editorOpen by remember { mutableStateOf(false) }; var editing by remember { mutableStateOf<SimProfile?>(null) }
     val profiles = config.profiles.filter { it.name.contains(query, true) || it.operatorName.contains(query, true) || it.countryIso.contains(query, true) }
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Header("SIM-пресеты", "Встроенные профили можно использовать сразу; свои — создать ниже.")
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(20.dp, 16.dp), label = { Text("Поиск пресетов") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) })
-            LazyColumn(contentPadding = PaddingValues(12.dp, 0.dp, 12.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(profiles, key = { it.id }) { ProfileCard(it) } }
+            LazyColumn(contentPadding = PaddingValues(12.dp, 0.dp, 12.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(profiles, key = { it.id }) { profile ->
+                ProfileCard(profile, onEdit = { editing = profile; editorOpen = true }, onReset = {
+                    BuiltInSimProfiles.all.firstOrNull { it.id == profile.id }?.let { builtin ->
+                        save(config.copy(profiles = config.profiles.map { if (it.id == builtin.id) builtin else it }))
+                    }
+                })
+            } }
         }
-        FloatingActionButton({ editor = true }, Modifier.align(Alignment.BottomEnd).padding(20.dp)) { Icon(Icons.Default.Add, "Добавить") }
+        FloatingActionButton({ editing = null; editorOpen = true }, Modifier.align(Alignment.BottomEnd).padding(20.dp)) { Icon(Icons.Default.Add, "Добавить") }
     }
-    if (editor) ProfileEditor({ editor = false }) { profile -> save(config.copy(profiles = config.profiles + profile)); editor = false }
+    if (editorOpen) ProfileEditor(editing, { editorOpen = false }) { edited ->
+        val next = if (editing == null) config.profiles + edited else config.profiles.map { if (it.id == edited.id) edited else it }
+        save(config.copy(profiles = next)); editorOpen = false
+    }
 }
 
-@Composable private fun ProfileCard(profile: SimProfile) = Card(modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
+@Composable private fun ProfileCard(profile: SimProfile, onEdit: () -> Unit, onReset: () -> Unit) = Card(modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
     Row { Text(profile.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); if (profile.builtIn) Text("Встроен", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
     Text("${profile.operatorName} · ${profile.mcc}${profile.mnc} · ${profile.countryIso.uppercase()}")
     Text(profile.networkType.displayName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (profile.phoneNumber.isNotBlank()) Text("MSISDN: ${profile.phoneNumber}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+        TextButton(onEdit) { Text("Изменить") }
+        if (profile.builtIn && BuiltInSimProfiles.all.firstOrNull { it.id == profile.id } != profile) TextButton(onReset) { Text("Сбросить") }
+    }
 } }
 
 @Composable
-private fun ProfileEditor(dismiss: () -> Unit, save: (SimProfile) -> Unit) {
-    var name by remember { mutableStateOf("") }; var country by remember { mutableStateOf("") }; var mcc by remember { mutableStateOf("") }; var mnc by remember { mutableStateOf("") }; var operator by remember { mutableStateOf("") }; var phoneNumber by remember { mutableStateOf("") }; var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(dismiss, title = { Text("Новый SIM-пресет") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun ProfileEditor(existing: SimProfile?, dismiss: () -> Unit, save: (SimProfile) -> Unit) {
+    var name by remember(existing?.id) { mutableStateOf(existing?.name.orEmpty()) }; var country by remember(existing?.id) { mutableStateOf(existing?.countryIso.orEmpty()) }; var mcc by remember(existing?.id) { mutableStateOf(existing?.mcc.orEmpty()) }; var mnc by remember(existing?.id) { mutableStateOf(existing?.mnc.orEmpty()) }; var operator by remember(existing?.id) { mutableStateOf(existing?.operatorName.orEmpty()) }; var phoneNumber by remember(existing?.id) { mutableStateOf(existing?.phoneNumber.orEmpty()) }; var error by remember(existing?.id) { mutableStateOf<String?>(null) }
+    AlertDialog(dismiss, title = { Text(if (existing == null) "Новый SIM-пресет" else "Изменить SIM-пресет") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Field("Название", name) { name = it }; Field("ISO страны, например DE", country) { country = it.lowercase() }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Box(Modifier.weight(1f)) { Field("MCC", mcc) { mcc = it.filter(Char::isDigit) } }; Box(Modifier.weight(1f)) { Field("MNC", mnc) { mnc = it.filter(Char::isDigit) } } }
         Field("Оператор", operator) { operator = it }
         Field("MSISDN (необязательно)", phoneNumber) { phoneNumber = it.filterIndexed { index, char -> char.isDigit() || (char == '+' && index == 0) } }
     } }, confirmButton = { Button({
-        val profile = SimProfile("custom-${UUID.randomUUID()}", name.trim(), country.trim(), mcc, mnc, operator.trim(), SimNetworkType.LTE, phoneNumber = phoneNumber.trim())
+        val profile = SimProfile(existing?.id ?: "custom-${UUID.randomUUID()}", name.trim(), country.trim(), mcc, mnc, operator.trim(), existing?.networkType ?: SimNetworkType.LTE, existing?.roaming ?: false, existing?.builtIn ?: false, phoneNumber.trim())
         error = profile.validationError(); if (error == null) save(profile)
     }) { Text("Создать") } }, dismissButton = { TextButton(dismiss) { Text("Отмена") } })
 }

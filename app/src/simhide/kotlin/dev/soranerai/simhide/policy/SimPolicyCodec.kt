@@ -22,7 +22,12 @@ object SimPolicyCodec {
         val root = JSONObject(raw)
         val profiles = root.optJSONArray("profiles").profiles()
         return SimHideConfig(
-            profiles = if (addBuiltInsIfMissing && profiles.none { it.builtIn }) BuiltInSimProfiles.all + profiles else profiles,
+            // Built-ins are canonical and may gain fields in an app update (for
+            // example the synthetic MSISDNs); preserve only user-created entries.
+            profiles = if (addBuiltInsIfMissing) {
+                BuiltInSimProfiles.all.map { builtin -> profiles.firstOrNull { it.id == builtin.id && it.builtIn } ?: builtin } +
+                    profiles.filterNot { it.builtIn && BuiltInSimProfiles.all.any { builtin -> builtin.id == it.id } }
+            } else profiles,
             appPolicies = root.optJSONArray("appPolicies").policies(),
         )
     }

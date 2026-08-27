@@ -3,12 +3,15 @@ package dev.soranerai.simhide.ui
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import androidx.core.graphics.drawable.toBitmap
 
 data class InstalledApp(
     val label: String,
     val packageName: String,
     val uid: Int,
     val isSystem: Boolean,
+    val icon: Bitmap?,
 )
 
 fun loadLaunchableApps(context: Context): List<InstalledApp> {
@@ -22,6 +25,7 @@ fun loadLaunchableApps(context: Context): List<InstalledApp> {
                 packageName = info.packageName,
                 uid = info.uid,
                 isSystem = (info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0,
+                icon = runCatching { resolveInfo.loadIcon(packageManager).toBitmap(96, 96) }.getOrNull(),
             )
         }
         .distinctBy { it.packageName }
