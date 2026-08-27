@@ -15,9 +15,9 @@ class SimHideHookEntry : IXposedHookLoadPackage {
                 SystemServerPolicyBridge.install()
                 SystemServerSubscriptionHooks.install(lpparam.classLoader)
             }
-            // This process is intentionally a Binder client: it must never read /data/system.
+            // This process reads only its radio-labelled private DE policy mirror.
             "com.android.phone" -> {
-                PhoneProcessPolicyBridge.current()
+                PhoneProcessPolicyBridge.install()
                 PhoneTelephonyHooks.install(lpparam.classLoader)
             }
         }
