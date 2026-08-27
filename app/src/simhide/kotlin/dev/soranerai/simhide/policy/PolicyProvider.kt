@@ -6,15 +6,13 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
-import android.os.Process
+import dev.soranerai.simhide.model.SimHideConfig
 import java.io.File
 
 /**
- * Narrow IPC endpoint for system telephony processes.
- *
- * It is exported only so Phone Services can resolve it through the normal
- * ActivityManager provider path; authorization is enforced from the actual
- * Binder caller UID, not from an intent permission a third-party app can hold.
+ * UID/package-filtered endpoint for applications explicitly selected as targets.
+ * URI grants make the provider visible on Android 11+, while this class ensures
+ * that a caller can receive only its own policy and referenced profile.
  */
 class PolicyProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -24,10 +22,12 @@ class PolicyProvider : ContentProvider() {
         arg: String?,
         extras: Bundle?,
     ): Bundle {
-        requireTrustedCaller()
+        val callerUid = Binder.getCallingUid()
+        val callerPackage = callingPackage
         if (method != METHOD_SNAPSHOT) throw IllegalArgumentException("Unsupported policy method")
         val file = File(requireNotNull(context).createDeviceProtectedStorageContext().filesDir, POLICY_FILE)
-        val json = file.takeIf(File::exists)?.readText() ?: ""
+        val raw = file.takeIf(File::exists)?.readText() ?: ""
+        val json = policyForTarget(raw, callerUid, callerPackage)
         return Bundle().apply {
             putString(KEY_JSON, json)
             putLong(KEY_REVISION, file.lastModified())
@@ -42,19 +42,27 @@ class PolicyProvider : ContentProvider() {
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = throw UnsupportedOperationException()
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = throw UnsupportedOperationException()
 
-    private fun requireTrustedCaller() {
-        when (Binder.getCallingUid()) {
-            Process.SYSTEM_UID, PHONE_UID -> Unit
-            else -> throw SecurityException("SIM Hide policy is restricted to system telephony")
-        }
+    private fun policyForTarget(raw: String, callerUid: Int, callerPackage: String?): String {
+        if (raw.isBlank() || callerPackage.isNullOrBlank()) return ""
+        val config = runCatching { SimPolicyCodec.decode(raw) }.getOrElse { return "" }
+        val policy = config.appPolicies.firstOrNull {
+            it.uid == callerUid && it.packageName == callerPackage
+        } ?: return ""
+        val profile = policy.profileId?.let { id -> config.profiles.firstOrNull { it.id == id } }
+        return SimPolicyCodec.encode(
+            SimHideConfig(
+                profiles = listOfNotNull(profile),
+                appPolicies = listOf(policy),
+            ),
+        )
     }
 
     companion object {
         const val AUTHORITY = "dev.soranerai.simhide.policy"
+        val POLICY_URI: Uri = Uri.parse("content://$AUTHORITY/policy")
         const val METHOD_SNAPSHOT = "snapshot"
         const val KEY_JSON = "json"
         const val KEY_REVISION = "revision"
         private const val POLICY_FILE = "simhide_policy.json"
-        private const val PHONE_UID = 1001
     }
 }

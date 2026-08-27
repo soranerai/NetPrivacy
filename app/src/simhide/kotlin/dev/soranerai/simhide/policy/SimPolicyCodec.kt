@@ -18,18 +18,18 @@ object SimPolicyCodec {
         put("appPolicies", JSONArray().apply { config.appPolicies.forEach { put(it.json()) } })
     }.toString()
 
-    fun decode(raw: String): SimHideConfig {
+    fun decode(raw: String, addBuiltInsIfMissing: Boolean = true): SimHideConfig {
         val root = JSONObject(raw)
         val profiles = root.optJSONArray("profiles").profiles()
         return SimHideConfig(
-            profiles = if (profiles.any { it.builtIn }) profiles else BuiltInSimProfiles.all + profiles,
+            profiles = if (addBuiltInsIfMissing && profiles.none { it.builtIn }) BuiltInSimProfiles.all + profiles else profiles,
             appPolicies = root.optJSONArray("appPolicies").policies(),
         )
     }
 
     private fun SimProfile.json() = JSONObject().apply {
         put("id", id); put("name", name); put("countryIso", countryIso); put("mcc", mcc); put("mnc", mnc)
-        put("operatorName", operatorName); put("networkType", networkType.name); put("roaming", roaming); put("builtIn", builtIn)
+        put("operatorName", operatorName); put("networkType", networkType.name); put("roaming", roaming); put("builtIn", builtIn); put("phoneNumber", phoneNumber)
     }
 
     private fun AppSimPolicy.json() = JSONObject().apply {
@@ -42,7 +42,7 @@ object SimPolicyCodec {
         for (i in 0 until length()) {
             val item = optJSONObject(i) ?: continue
             val id = item.optString("id"); if (id.isBlank()) continue
-            add(SimProfile(id, item.optString("name"), item.optString("countryIso"), item.optString("mcc"), item.optString("mnc"), item.optString("operatorName"), networkType(item.optString("networkType")), item.optBoolean("roaming"), item.optBoolean("builtIn")))
+            add(SimProfile(id, item.optString("name"), item.optString("countryIso"), item.optString("mcc"), item.optString("mnc"), item.optString("operatorName"), networkType(item.optString("networkType")), item.optBoolean("roaming"), item.optBoolean("builtIn"), item.optString("phoneNumber")))
         }
     }
 

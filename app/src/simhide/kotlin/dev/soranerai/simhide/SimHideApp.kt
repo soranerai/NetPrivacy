@@ -35,7 +35,11 @@ fun SimHideApp() {
     var apps by remember { mutableStateOf<List<InstalledApp>?>(null) }
     var tab by remember { mutableStateOf(Tab.TARGETS) }
     var publishError by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) } }
+    LaunchedEffect(Unit) {
+        val grantResult = withContext(Dispatchers.IO) { store.restoreTargetGrants() }
+        publishError = grantResult.exceptionOrNull()?.message
+        apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
+    }
     fun save(next: SimHideConfig) {
         val result = store.write(next)
         config = next
@@ -145,18 +149,20 @@ private fun Presets(modifier: Modifier, config: SimHideConfig, save: (SimHideCon
     Row { Text(profile.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); if (profile.builtIn) Text("Встроен", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
     Text("${profile.operatorName} · ${profile.mcc}${profile.mnc} · ${profile.countryIso.uppercase()}")
     Text(profile.networkType.displayName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (profile.phoneNumber.isNotBlank()) Text("MSISDN: ${profile.phoneNumber}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 } }
 
 @Composable
 private fun ProfileEditor(dismiss: () -> Unit, save: (SimProfile) -> Unit) {
-    var name by remember { mutableStateOf("") }; var country by remember { mutableStateOf("") }; var mcc by remember { mutableStateOf("") }; var mnc by remember { mutableStateOf("") }; var operator by remember { mutableStateOf("") }; var error by remember { mutableStateOf<String?>(null) }
+    var name by remember { mutableStateOf("") }; var country by remember { mutableStateOf("") }; var mcc by remember { mutableStateOf("") }; var mnc by remember { mutableStateOf("") }; var operator by remember { mutableStateOf("") }; var phoneNumber by remember { mutableStateOf("") }; var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(dismiss, title = { Text("Новый SIM-пресет") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Field("Название", name) { name = it }; Field("ISO страны, например DE", country) { country = it.lowercase() }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Box(Modifier.weight(1f)) { Field("MCC", mcc) { mcc = it.filter(Char::isDigit) } }; Box(Modifier.weight(1f)) { Field("MNC", mnc) { mnc = it.filter(Char::isDigit) } } }
         Field("Оператор", operator) { operator = it }
+        Field("MSISDN (необязательно)", phoneNumber) { phoneNumber = it.filterIndexed { index, char -> char.isDigit() || (char == '+' && index == 0) } }
     } }, confirmButton = { Button({
-        val profile = SimProfile("custom-${UUID.randomUUID()}", name.trim(), country.trim(), mcc, mnc, operator.trim(), SimNetworkType.LTE)
+        val profile = SimProfile("custom-${UUID.randomUUID()}", name.trim(), country.trim(), mcc, mnc, operator.trim(), SimNetworkType.LTE, phoneNumber = phoneNumber.trim())
         error = profile.validationError(); if (error == null) save(profile)
     }) { Text("Создать") } }, dismissButton = { TextButton(dismiss) { Text("Отмена") } })
 }

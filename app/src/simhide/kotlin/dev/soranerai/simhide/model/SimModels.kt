@@ -11,6 +11,8 @@ data class SimProfile(
     val networkType: SimNetworkType = SimNetworkType.LTE,
     val roaming: Boolean = false,
     val builtIn: Boolean = false,
+    /** Optional MSISDN presented to protected apps; never inferred from the real SIM. */
+    val phoneNumber: String = "",
 )
 
 enum class SimNetworkType(val displayName: String) {
@@ -66,5 +68,6 @@ fun SimProfile.validationError(): String? = when {
     !mcc.matches(Regex("\\d{3}")) -> "MCC должен состоять из 3 цифр"
     !mnc.matches(Regex("\\d{2,3}")) -> "MNC должен состоять из 2 или 3 цифр"
     operatorName.isBlank() -> "Укажите имя оператора"
+    phoneNumber.isNotBlank() && !phoneNumber.matches(Regex("\\+?[0-9]{3,15}")) -> "MSISDN: от 3 до 15 цифр, с необязательным +"
     else -> null
 }

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:allowBackup="false"
         android:label="SIM Hide"
@@ -22,7 +23,19 @@
             android:authorities="dev.soranerai.simhide.policy"
             android:exported="true"
             android:directBootAware="true"
-            android:grantUriPermissions="false" />
+            android:grantUriPermissions="true">
+            <grant-uri-permission android:path="/policy" />
+        </provider>
+
+        <receiver
+            android:name=".policy.PolicyGrantReceiver"
+            android:directBootAware="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Metadata consumed by LSPosed-compatible managers. -->
         <meta-data

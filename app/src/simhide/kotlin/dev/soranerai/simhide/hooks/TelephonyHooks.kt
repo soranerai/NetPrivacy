@@ -1,88 +1,180 @@
 package dev.soranerai.simhide.hooks
 
-import android.os.Binder
 import android.telephony.TelephonyManager
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
+import dev.soranerai.simhide.SimHideLog
+import dev.soranerai.simhide.model.SimFilterSet
 import dev.soranerai.simhide.model.SimNetworkType
+import dev.soranerai.simhide.model.SimProfile
 import dev.soranerai.simhide.model.SimVisibilityMode
-import dev.soranerai.simhide.policy.PhoneProcessPolicyBridge
 import dev.soranerai.simhide.policy.PolicySnapshot
-import dev.soranerai.simhide.policy.SystemServerPolicyBridge
+import dev.soranerai.simhide.policy.TargetProcessPolicyBridge
+import java.util.concurrent.ConcurrentHashMap
 
-/** Version-tolerant hooks: absent OEM methods are skipped rather than breaking telephony. */
-object PhoneTelephonyHooks {
+/** Android 16 client-side hooks. No telephony or system process is required. */
+object TargetTelephonyHooks {
+    private val loggedHits = ConcurrentHashMap.newKeySet<String>()
+
     fun install(classLoader: ClassLoader) {
-        listOf("com.android.phone.PhoneInterfaceManager", "com.android.phone.PhoneSubInfoController").forEach { name ->
-            runCatching { Class.forName(name, false, classLoader) }.getOrNull()?.let(::installForClass)
+        val telephony = findClass("android.telephony.TelephonyManager", classLoader) ?: return
+
+        hookBefore(telephony, setOf(
+            "getNetworkOperator", "getNetworkOperatorForPhone",
+            "getSimOperator", "getSimOperatorNumeric", "getSimOperatorNumericForPhone",
+        )) { policy, param -> if (policy.filters.operator) param.result = policy.operatorNumeric() }
+
+        hookBefore(telephony, setOf(
+            "getNetworkOperatorName", "getNetworkOperatorNameForPhone",
+            "getSimOperatorName", "getSimOperatorNameForPhone", "getSimCarrierIdName",
+        )) { policy, param -> if (policy.filters.operator) param.result = policy.operatorName() }
+
+        hookBefore(telephony, setOf(
+            "getNetworkCountryIso", "getNetworkCountryIsoForPhone",
+            "getSimCountryIso", "getSimCountryIsoForPhone",
+        )) { policy, param -> if (policy.filters.operator) param.result = policy.countryIso() }
+
+        hookBefore(telephony, setOf("getDataNetworkType", "getNetworkType", "getVoiceNetworkType")) { policy, param ->
+            if (policy.filters.operator) param.result = policy.networkType()
         }
-    }
-
-    private fun installForClass(clazz: Class<*>) {
-        hookStrings(clazz, setOf("getNetworkOperatorForPhone", "getNetworkOperatorForSubscriber")) { it.operatorNumeric() }
-        hookStrings(clazz, setOf("getNetworkOperatorName", "getNetworkOperatorNameForPhone", "getSimOperatorNameForPhone")) { it.profile?.operatorName.orEmpty() }
-        hookStrings(clazz, setOf("getNetworkCountryIsoForPhone", "getNetworkCountryIsoForSubscriber", "getSimCountryIsoForPhone")) { it.profile?.countryIso.orEmpty() }
-        hookInts(clazz, setOf("getDataNetworkType", "getDataNetworkTypeForSubscriber", "getVoiceNetworkTypeForSubscriber")) { it.networkType() }
-        hookBooleans(clazz, setOf("isNetworkRoaming", "isNetworkRoamingForSubscriber")) { it.profile?.roaming ?: false }
-        hookInts(clazz, setOf("getSimStateForSlotIndex", "getSimState")) { TelephonyManager.SIM_STATE_ABSENT }
-        hookCellObjects(clazz, setOf("getAllCellInfo", "getAllCellInfoForSubscriber")) { emptyList<Any>() }
-        hookCellObjects(clazz, setOf("getCellLocation", "getCellLocationForSubscriber")) { null }
-        hookIdentifierObjects(clazz, setOf("getSubscriberIdForSubscriber", "getSubscriberId", "getIccSerialNumberForSubscriber", "getIccSerialNumber", "getLine1NumberForSubscriber", "getLine1Number")) { null }
-    }
-
-    private fun hookStrings(clazz: Class<*>, names: Set<String>, result: (EffectivePolicy) -> String) = hook(clazz, names) { policy, param ->
-        if (policy.filters.operator) param.result = result(policy)
-    }
-
-    private fun hookInts(clazz: Class<*>, names: Set<String>, result: (EffectivePolicy) -> Int) = hook(clazz, names) { policy, param ->
-        if (policy.filters.operator || policy.mode == SimVisibilityMode.HIDE) param.result = result(policy)
-    }
-
-    private fun hookBooleans(clazz: Class<*>, names: Set<String>, result: (EffectivePolicy) -> Boolean) = hook(clazz, names) { policy, param ->
-        if (policy.filters.operator) param.result = result(policy)
-    }
-
-    private fun hookCellObjects(clazz: Class<*>, names: Set<String>, result: (EffectivePolicy) -> Any?) = hook(clazz, names) { policy, param ->
-        if (policy.filters.cellInfo) param.result = result(policy)
-    }
-
-    private fun hookIdentifierObjects(clazz: Class<*>, names: Set<String>, result: (EffectivePolicy) -> Any?) = hook(clazz, names) { policy, param ->
-        if (policy.filters.identifiers) param.result = result(policy)
-    }
-
-    private fun hook(clazz: Class<*>, names: Set<String>, change: (EffectivePolicy, XC_MethodHook.MethodHookParam) -> Unit) {
-        names.forEach { method -> XposedBridge.hookAllMethods(clazz, method, object : XC_MethodHook() {
-            override fun afterHookedMethod(param: MethodHookParam) { effectivePolicy(PhoneProcessPolicyBridge.current())?.let { change(it, param) } }
-        }) }
-    }
-}
-
-object SystemServerSubscriptionHooks {
-    fun install(classLoader: ClassLoader) {
-        // Android versions/OEMs move the ISub implementation; only hook classes actually in system_server.
-        listOf("com.android.server.telephony.subscription.SubscriptionManagerService", "com.android.server.telephony.SubscriptionManagerService").forEach { name ->
-            runCatching { Class.forName(name, false, classLoader) }.getOrNull()?.let { clazz ->
-                setOf("getActiveSubscriptionInfoList", "getCompleteActiveSubscriptionInfoList", "getAvailableSubscriptionInfoList", "getActiveSubscriptionInfoCount").forEach { method ->
-                    XposedBridge.hookAllMethods(clazz, method, object : XC_MethodHook() {
-                        override fun afterHookedMethod(param: MethodHookParam) {
-                            val policy = effectivePolicy(SystemServerPolicyBridge.current()) ?: return
-                            if (policy.mode != SimVisibilityMode.HIDE || !policy.filters.subscription) return
-                            param.result = if (param.result is Number) 0 else emptyList<Any>()
-                        }
-                    })
+        hookBefore(telephony, setOf("isNetworkRoaming")) { policy, param ->
+            if (policy.filters.operator) param.result = policy.profile?.roaming ?: false
+        }
+        hookBefore(telephony, setOf("getSimState")) { policy, param ->
+            if (policy.filters.subscription || policy.mode == SimVisibilityMode.HIDE) {
+                param.result = if (policy.mode == SimVisibilityMode.HIDE) {
+                    TelephonyManager.SIM_STATE_ABSENT
+                } else {
+                    TelephonyManager.SIM_STATE_READY
                 }
             }
         }
+        hookBefore(telephony, setOf("getAllCellInfo")) { policy, param ->
+            if (policy.filters.cellInfo) param.result = emptyList<Any>()
+        }
+        hookBefore(telephony, setOf("getCellLocation")) { policy, param ->
+            if (policy.filters.cellInfo) param.result = null
+        }
+        hookBefore(telephony, setOf(
+            "getImei", "getMeid", "getDeviceId", "getSubscriberId",
+            "getSimSerialNumber", "getGroupIdLevel1",
+        )) { policy, param -> if (policy.filters.identifiers) param.result = null }
+        hookBefore(telephony, setOf("getLine1Number", "getMsisdn")) { policy, param ->
+            if (policy.filters.identifiers) param.result = policy.phoneNumber()
+        }
+        hookBefore(telephony, setOf("getLine1AlphaTag")) { policy, param ->
+            if (policy.filters.identifiers) param.result = policy.operatorName()
+        }
+
+        installSubscriptionManagerHooks(classLoader)
+        installSubscriptionInfoHooks(classLoader)
+    }
+
+    private fun installSubscriptionManagerHooks(classLoader: ClassLoader) {
+        val clazz = findClass("android.telephony.SubscriptionManager", classLoader) ?: return
+        setOf(
+            "getActiveSubscriptionInfoList", "getCompleteActiveSubscriptionInfoList",
+            "getAvailableSubscriptionInfoList", "getAccessibleSubscriptionInfoList",
+        ).forEach { method ->
+            val hooks = XposedBridge.hookAllMethods(clazz, method, object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val policy = effectivePolicy() ?: return
+                    if (!policy.filters.subscription || policy.mode != SimVisibilityMode.HIDE) return
+                    logHit("SubscriptionManager.$method")
+                    param.result = emptyList<Any>()
+                }
+
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val policy = effectivePolicy() ?: return
+                    if (!policy.filters.subscription || policy.mode != SimVisibilityMode.PROFILE) return
+                    val list = param.result as? List<*> ?: return
+                    logHit("SubscriptionManager.$method")
+                    param.result = list.take(1)
+                }
+            })
+            logInstalled(clazz, method, hooks.size)
+        }
+        hookBefore(clazz, setOf("getActiveSubscriptionInfoCount")) { policy, param ->
+            if (policy.filters.subscription) {
+                param.result = if (policy.mode == SimVisibilityMode.HIDE) 0 else 1
+            }
+        }
+        hookBefore(clazz, setOf("getPhoneNumber")) { policy, param ->
+            if (policy.filters.identifiers || policy.filters.subscription) param.result = policy.phoneNumber()
+        }
+    }
+
+    private fun installSubscriptionInfoHooks(classLoader: ClassLoader) {
+        val clazz = findClass("android.telephony.SubscriptionInfo", classLoader) ?: return
+        hookBefore(clazz, setOf("getCarrierName", "getDisplayName")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.operatorName()
+        }
+        hookBefore(clazz, setOf("getCountryIso")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.countryIso()
+        }
+        hookBefore(clazz, setOf("getMccString")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.profile?.mcc.orEmpty()
+        }
+        hookBefore(clazz, setOf("getMncString")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.profile?.mnc.orEmpty()
+        }
+        hookBefore(clazz, setOf("getMcc")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.profile?.mcc?.toIntOrNull() ?: 0
+        }
+        hookBefore(clazz, setOf("getMnc")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.profile?.mnc?.toIntOrNull() ?: 0
+        }
+        hookBefore(clazz, setOf("getIccId", "getCardString")) { policy, param ->
+            if (policy.filters.identifiers || policy.filters.subscription) param.result = ""
+        }
+        hookBefore(clazz, setOf("getNumber")) { policy, param ->
+            if (policy.filters.identifiers || policy.filters.subscription) param.result = policy.phoneNumber()
+        }
+    }
+
+    private fun hookBefore(
+        clazz: Class<*>,
+        names: Set<String>,
+        change: (EffectivePolicy, XC_MethodHook.MethodHookParam) -> Unit,
+    ) {
+        names.forEach { method ->
+            val hooks = XposedBridge.hookAllMethods(clazz, method, object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val policy = effectivePolicy() ?: return
+                    change(policy, param)
+                    logHit("${clazz.simpleName}.$method")
+                }
+            })
+            logInstalled(clazz, method, hooks.size)
+        }
+    }
+
+    private fun findClass(name: String, classLoader: ClassLoader): Class<*>? =
+        runCatching { Class.forName(name, false, classLoader) }
+            .onFailure { SimHideLog.warn("target class unavailable: $name", it) }
+            .getOrNull()
+
+    private fun logInstalled(clazz: Class<*>, method: String, count: Int) {
+        if (count > 0) SimHideLog.info("hooked target ${clazz.simpleName}.$method ($count)")
+    }
+
+    private fun logHit(method: String) {
+        if (loggedHits.add(method)) SimHideLog.info("first policy hit: $method")
     }
 }
 
 private data class EffectivePolicy(
     val mode: SimVisibilityMode,
-    val filters: dev.soranerai.simhide.model.SimFilterSet,
-    val profile: dev.soranerai.simhide.model.SimProfile?,
+    val filters: SimFilterSet,
+    val profile: SimProfile?,
 ) {
     fun operatorNumeric() = if (mode == SimVisibilityMode.HIDE) "" else "${profile?.mcc.orEmpty()}${profile?.mnc.orEmpty()}"
-    fun networkType() = when (profile?.networkType) {
+    fun operatorName() = if (mode == SimVisibilityMode.HIDE) "" else profile?.operatorName.orEmpty()
+    fun countryIso() = if (mode == SimVisibilityMode.HIDE) "" else profile?.countryIso.orEmpty()
+    fun phoneNumber() = if (mode == SimVisibilityMode.HIDE) "" else profile?.phoneNumber.orEmpty()
+    fun networkType() = if (mode == SimVisibilityMode.HIDE) {
+        TelephonyManager.NETWORK_TYPE_UNKNOWN
+    } else when (profile?.networkType) {
         SimNetworkType.GSM -> TelephonyManager.NETWORK_TYPE_GPRS
         SimNetworkType.UMTS -> TelephonyManager.NETWORK_TYPE_UMTS
         SimNetworkType.NR -> TelephonyManager.NETWORK_TYPE_NR
@@ -90,8 +182,8 @@ private data class EffectivePolicy(
     }
 }
 
-private fun effectivePolicy(snapshot: PolicySnapshot): EffectivePolicy? {
-    val policy = snapshot.policyForUid(Binder.getCallingUid()) ?: return null
+private fun effectivePolicy(snapshot: PolicySnapshot = TargetProcessPolicyBridge.current()): EffectivePolicy? {
+    val policy = snapshot.policyForCurrentProcess() ?: return null
     if (policy.mode == SimVisibilityMode.PASSTHROUGH) return null
     return EffectivePolicy(policy.mode, policy.filters, snapshot.profileFor(policy))
 }

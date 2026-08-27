@@ -8,8 +8,8 @@ import dev.soranerai.simhide.model.SimHideConfig
 import dev.soranerai.simhide.model.SimNetworkType
 import dev.soranerai.simhide.model.SimProfile
 import dev.soranerai.simhide.model.SimVisibilityMode
-import dev.soranerai.simhide.policy.RootPolicyPublisher
 import dev.soranerai.simhide.policy.SimPolicyCodec
+import dev.soranerai.simhide.policy.TargetPolicyGrants
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -19,8 +19,10 @@ import java.io.File
  * processes. A completed rename is the publication boundary for a policy change.
  */
 class SimConfigStore(context: Context) {
-    private val file = File(context.createDeviceProtectedStorageContext().filesDir, FILE_NAME)
+    private val applicationContext = context.applicationContext
+    private val file = File(applicationContext.createDeviceProtectedStorageContext().filesDir, FILE_NAME)
     private val tempFile = File(file.parentFile, "$FILE_NAME.tmp")
+    private val grants = TargetPolicyGrants(applicationContext)
     private val lock = Any()
 
     fun read(): SimHideConfig = synchronized(lock) {
@@ -28,15 +30,18 @@ class SimConfigStore(context: Context) {
         runCatching { parse(file.readText()) }.getOrElse { defaultConfig() }
     }
 
-    /** Local write always succeeds before publication; callers can surface a root failure to the user. */
+    /** Device-protected local storage is the sole policy source; the provider brokers reads. */
     fun write(config: SimHideConfig): Result<Unit> = synchronized(lock) {
+        val previous = read()
         file.parentFile?.mkdirs()
         tempFile.writeText(SimPolicyCodec.encode(config))
         if (!tempFile.renameTo(file)) {
             return@synchronized Result.failure(IllegalStateException("Не удалось атомарно сохранить конфигурацию"))
         }
-        RootPolicyPublisher.publish(file)
+        grants.sync(previous.appPolicies, config.appPolicies)
     }
+
+    fun restoreTargetGrants(): Result<Unit> = grants.sync(emptyList(), read().appPolicies)
 
     private fun defaultConfig() = SimHideConfig(profiles = BuiltInSimProfiles.all)
 
@@ -61,7 +66,7 @@ private fun SimHideConfig.toJson() = JSONObject().apply {
 
 private fun SimProfile.toJson() = JSONObject().apply {
     put("id", id); put("name", name); put("countryIso", countryIso); put("mcc", mcc); put("mnc", mnc)
-    put("operatorName", operatorName); put("networkType", networkType.name); put("roaming", roaming); put("builtIn", builtIn)
+    put("operatorName", operatorName); put("networkType", networkType.name); put("roaming", roaming); put("builtIn", builtIn); put("phoneNumber", phoneNumber)
 }
 
 private fun AppSimPolicy.toJson() = JSONObject().apply {
@@ -83,6 +88,7 @@ private fun JSONArray?.toProfiles(): List<SimProfile> = buildList {
             mcc = item.optString("mcc"), mnc = item.optString("mnc"), operatorName = item.optString("operatorName"),
             networkType = item.optString("networkType").toNetworkType(), roaming = item.optBoolean("roaming"),
             builtIn = item.optBoolean("builtIn"),
+            phoneNumber = item.optString("phoneNumber"),
         ))
     }
 }
