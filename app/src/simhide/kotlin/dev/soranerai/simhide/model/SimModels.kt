@@ -1,5 +1,7 @@
 package dev.soranerai.simhide.model
 
+import dev.soranerai.simhide.R
+
 /** Values presented to a selected app. A profile never stores real SIM identifiers. */
 data class SimProfile(
     val id: String,
@@ -15,11 +17,11 @@ data class SimProfile(
     val phoneNumber: String = "",
 )
 
-enum class SimNetworkType(val displayName: String) {
-    GSM("2G GSM"),
-    UMTS("3G UMTS"),
-    LTE("4G LTE"),
-    NR("5G NR"),
+enum class SimNetworkType(val labelRes: Int) {
+    GSM(R.string.network_gsm),
+    UMTS(R.string.network_umts),
+    LTE(R.string.network_lte),
+    NR(R.string.network_nr),
 }
 
 enum class SimVisibilityMode {
@@ -50,6 +52,8 @@ data class AppSimPolicy(
 data class SimHideConfig(
     val profiles: List<SimProfile> = BuiltInSimProfiles.all,
     val appPolicies: List<AppSimPolicy> = emptyList(),
+    /** Ordered profile IDs shown first in the picker; constrained to five by the UI/store. */
+    val favoriteProfileIds: List<String> = emptyList(),
 )
 
 object BuiltInSimProfiles {
@@ -65,15 +69,23 @@ object BuiltInSimProfiles {
             SimProfile("builtin-nl-kpn", "Netherlands · KPN", "nl", "204", "08", "KPN", SimNetworkType.LTE, builtIn = true, phoneNumber = "+31612345678"),
             SimProfile("builtin-pl-orange", "Poland · Orange", "pl", "260", "01", "Orange", SimNetworkType.LTE, builtIn = true, phoneNumber = "+48512123456"),
             SimProfile("builtin-ru-mts", "Russia · MTS", "ru", "250", "01", "MTS", SimNetworkType.LTE, builtIn = true, phoneNumber = "+79211234567"),
+            SimProfile("builtin-tr-turkcell", "Türkiye · Turkcell", "tr", "286", "01", "Turkcell", SimNetworkType.LTE, builtIn = true, phoneNumber = "+905321234567"),
+            SimProfile("builtin-kz-kcell", "Kazakhstan · Kcell", "kz", "401", "01", "Kcell", SimNetworkType.LTE, builtIn = true, phoneNumber = "+77011234567"),
         )
 }
 
-fun SimProfile.validationError(): String? = when {
-    name.isBlank() -> "Укажите имя пресета"
-    !countryIso.matches(Regex("[a-zA-Z]{2}")) -> "ISO-код страны должен состоять из 2 букв"
-    !mcc.matches(Regex("\\d{3}")) -> "MCC должен состоять из 3 цифр"
-    !mnc.matches(Regex("\\d{2,3}")) -> "MNC должен состоять из 2 или 3 цифр"
-    operatorName.isBlank() -> "Укажите имя оператора"
-    phoneNumber.isNotBlank() && !phoneNumber.matches(Regex("\\+?[0-9]{3,15}")) -> "MSISDN: от 3 до 15 цифр, с необязательным +"
+fun List<String>.validFavoriteIds(profiles: List<SimProfile>): List<String> =
+    distinct().filter { id -> profiles.any { it.id == id } }.take(5)
+
+fun List<SimProfile>.uniqueCountries(): List<SimProfile> =
+    distinctBy { it.countryIso.lowercase() }
+
+fun SimProfile.validationErrorRes(): Int? = when {
+    name.isBlank() -> R.string.validation_name
+    !countryIso.matches(Regex("[a-zA-Z]{2}")) -> R.string.validation_country_iso
+    !mcc.matches(Regex("\\d{3}")) -> R.string.validation_mcc
+    !mnc.matches(Regex("\\d{2,3}")) -> R.string.validation_mnc
+    operatorName.isBlank() -> R.string.validation_operator
+    phoneNumber.isNotBlank() && !phoneNumber.matches(Regex("\\+?[0-9]{3,15}")) -> R.string.validation_msisdn
     else -> null
 }
