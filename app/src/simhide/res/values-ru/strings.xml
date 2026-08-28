@@ -48,4 +48,27 @@
     <string name="favorite">Избранное</string>
     <string name="add_favorite">Добавить в избранное</string>
     <string name="remove_favorite">Убрать из избранного</string>
+    <string name="tab_wifi_presets">Wi-Fi</string>
+    <string name="chip_wifi">Wi-Fi</string>
+    <string name="wifi_profile">Профиль Wi-Fi</string>
+    <string name="not_configured">Не настроено</string>
+    <string name="wifi_presets_title">Пресеты Wi-Fi</string>
+    <string name="wifi_presets_subtitle">Создавайте синтетические конфигурации Wi-Fi и DHCP для будущего использования.</string>
+    <string name="search_wifi_presets">Поиск пресетов Wi-Fi</string>
+    <string name="new_wifi_preset">Новый пресет Wi-Fi</string>
+    <string name="edit_wifi_preset">Изменить пресет Wi-Fi</string>
+    <string name="field_ip_address">IP-адрес</string>
+    <string name="field_speed_optional">Скорость (необязательно)</string>
+    <string name="field_frequency_optional">Частота (необязательно)</string>
+    <string name="dhcp_info">Данные DHCP</string>
+    <string name="field_gateway">Шлюз</string>
+    <string name="field_server_ip">IP сервера</string>
+    <string name="validation_wifi_name">Укажите имя пресета Wi-Fi</string>
+    <string name="validation_ssid">Укажите SSID</string>
+    <string name="validation_bssid">Укажите BSSID</string>
+    <string name="validation_ip_address">Укажите IP-адрес</string>
+    <string name="validation_gateway">Укажите адрес шлюза</string>
+    <string name="validation_dns1">Укажите основной DNS-сервер</string>
+    <string name="validation_dns2">Укажите дополнительный DNS-сервер</string>
+    <string name="validation_server_ip">Укажите IP-адрес DHCP-сервера</string>
 </resources>

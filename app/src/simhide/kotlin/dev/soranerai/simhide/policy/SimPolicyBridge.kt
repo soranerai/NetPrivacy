@@ -5,16 +5,21 @@ import android.os.Process
 import android.os.SystemClock
 import dev.soranerai.simhide.SimHideLog
 import dev.soranerai.simhide.model.AppSimPolicy
-import dev.soranerai.simhide.model.SimHideConfig
+import dev.soranerai.simhide.model.AppWifiPolicy
+import dev.soranerai.simhide.model.HideConfig
 
-data class PolicySnapshot(val revision: Long, val config: SimHideConfig) {
-    private val policiesByUid = config.appPolicies.associateBy { it.uid }
-    private val profilesById = config.profiles.associateBy { it.id }
+data class PolicySnapshot(val revision: Long, val config: HideConfig) {
+    private val policiesByUid = config.simPolicies.associateBy { it.uid }
+    private val profilesById = config.simProfiles.associateBy { it.id }
+    private val wifiPoliciesByUid = config.wifiPolicies.associateBy { it.uid }
+    private val wifiProfilesById = config.wifiProfiles.associateBy { it.id }
 
     fun policyForCurrentProcess(): AppSimPolicy? = policiesByUid[Process.myUid()]
     fun profileFor(policy: AppSimPolicy) = policy.profileId?.let(profilesById::get)
+    fun wifiPolicyForCurrentProcess(): AppWifiPolicy? = wifiPoliciesByUid[Process.myUid()]
+    fun wifiProfileFor(policy: AppWifiPolicy) = wifiProfilesById[policy.profileId]
 
-    companion object { val EMPTY = PolicySnapshot(0, SimHideConfig(profiles = emptyList())) }
+    companion object { val EMPTY = PolicySnapshot(0, HideConfig(simProfiles = emptyList())) }
 }
 
 /** Reads the calling application's UID-filtered snapshot after Application.attach(). */
@@ -62,16 +67,16 @@ object TargetProcessPolicyBridge {
         val revision = response.getLong(PolicyProvider.KEY_REVISION)
         val json = response.getString(PolicyProvider.KEY_JSON).orEmpty()
         if (json.isBlank()) {
-            snapshot = PolicySnapshot(revision, SimHideConfig(profiles = emptyList()))
+            snapshot = PolicySnapshot(revision, HideConfig(simProfiles = emptyList()))
             SimHideLog.info("target policy is empty for $packageName")
             return
         }
-        val candidate = runCatching { SimPolicyCodec.decode(json, addBuiltInsIfMissing = false) }.getOrElse {
+        val candidate = runCatching { ConfigCodec.decode(json, addBuiltInsIfMissing = false) }.getOrElse {
             snapshot = PolicySnapshot.EMPTY
             SimHideLog.warn("target policy snapshot is invalid for $packageName", it)
             return
         }
         snapshot = PolicySnapshot(revision, candidate)
-        SimHideLog.info("target policy revision=$revision, policies=${candidate.appPolicies.size}, package=$packageName")
+        SimHideLog.info("target policy revision=$revision, policies=${candidate.simPolicies.size}, package=$packageName")
     }
 }

@@ -8,14 +8,18 @@ SIM profile to individual selected applications. It targets Android 10+ (min SDK
 
 - `SimHideApp.kt` is the complete Compose UI: **Targets** assigns an app a mode
   and optional profile; **SIM presets** manages built-in and custom profiles.
-- `model/SimModels.kt` defines profiles, per-app policies, up to five ordered
-  favorite profile IDs, and the built-in synthetic profiles. Profiles are unique
-  by country ISO. It must never contain or derive a real SIM identifier.
+- `model/SimModels.kt` contains only SIM profiles, SIM policies and SIM-specific
+  validation. `model/WifiModels.kt` contains only Wi-Fi/DHCP profiles and
+  Wi-Fi assignments. `model/HideConfig.kt` composes both domains into the
+  persisted module configuration. SIM profiles are unique by country ISO.
+  No model may contain or derive a real SIM identifier.
 - `data/SimConfigStore.kt` persists the JSON configuration atomically.
 - `policy/` serializes the policy and exposes it via the protected
   `PolicyProvider`; `TargetPolicyGrants.kt` restores app URI grants at boot.
-- `hooks/TelephonyHooks.kt` applies the policy in target app processes through
-  the LSPosed entry point (`SimHideHookEntry.kt`).
+- `hooks/TelephonyHooks.kt` and `hooks/WifiHooks.kt` apply policies in target
+  app processes through the LSPosed entry point (`SimHideHookEntry.kt`). Wi-Fi
+  covers `WifiInfo` identity/link getters, `DhcpInfo`, and the Wi-Fi
+  interface's `LinkProperties` address/DNS getters.
 - App resources live under `app/src/simhide/res`. English is the default in
   `values/strings.xml`; Russian is in `values-ru/strings.xml`.
 
@@ -23,7 +27,8 @@ SIM profile to individual selected applications. It targets Android 10+ (min SDK
 
 All user-visible UI strings use Android string resources. Users can mark up to
 five profiles as favorites; they are shown first and starred in the profile
-picker. `SimHideTheme` tracks
+picker. The `SIM` and `Wi-Fi` icons in a target row open the corresponding assignment
+menus and use colour only to indicate configuration. `SimHideTheme` tracks
 the system light/dark setting. Its dark, AMOLED-oriented palette intentionally
 matches `../vpnhide_next`: black surfaces, green primary accent and blue/cyan
 network accents. Avoid dynamic system colours unless the product explicitly
@@ -38,6 +43,6 @@ written to `app/build/outputs/apk/debug/app-debug.apk`.
 
 - Keep all display text in resources and update both English and Russian files.
 - Policy/profile schema changes must stay compatible with both
-  `SimConfigStore` and `SimPolicyCodec`.
+  `SimConfigStore` and `ConfigCodec`.
 - Do not relax the provider's caller checks or add real SIM identifiers to the
   stored configuration.

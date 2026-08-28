@@ -49,13 +49,7 @@ data class AppSimPolicy(
     val filters: SimFilterSet = SimFilterSet(),
 )
 
-data class SimHideConfig(
-    val profiles: List<SimProfile> = BuiltInSimProfiles.all,
-    val appPolicies: List<AppSimPolicy> = emptyList(),
-    /** Ordered profile IDs shown first in the picker; constrained to five by the UI/store. */
-    val favoriteProfileIds: List<String> = emptyList(),
-)
-
+/** Synthetic Wi-Fi and DHCP values reserved for future hooks. */
 object BuiltInSimProfiles {
     val all =
         listOf(
@@ -79,6 +73,7 @@ fun List<String>.validFavoriteIds(profiles: List<SimProfile>): List<String> =
 
 fun List<SimProfile>.uniqueCountries(): List<SimProfile> =
     distinctBy { it.countryIso.lowercase() }
+
 
 fun SimProfile.validationErrorRes(): Int? = when {
     name.isBlank() -> R.string.validation_name

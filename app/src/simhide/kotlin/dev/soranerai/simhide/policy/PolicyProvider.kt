@@ -6,13 +6,13 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
-import dev.soranerai.simhide.model.SimHideConfig
+import dev.soranerai.simhide.model.HideConfig
 import java.io.File
 
 /**
  * UID/package-filtered endpoint for applications explicitly selected as targets.
  * URI grants make the provider visible on Android 11+, while this class ensures
- * that a caller can receive only its own policy and referenced profile.
+ * that a caller can receive only its own SIM/Wi-Fi policies and referenced profiles.
  */
 class PolicyProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -44,15 +44,22 @@ class PolicyProvider : ContentProvider() {
 
     private fun policyForTarget(raw: String, callerUid: Int, callerPackage: String?): String {
         if (raw.isBlank() || callerPackage.isNullOrBlank()) return ""
-        val config = runCatching { SimPolicyCodec.decode(raw) }.getOrElse { return "" }
-        val policy = config.appPolicies.firstOrNull {
+        val config = runCatching { ConfigCodec.decode(raw) }.getOrElse { return "" }
+        val simPolicy = config.simPolicies.firstOrNull {
             it.uid == callerUid && it.packageName == callerPackage
-        } ?: return ""
-        val profile = policy.profileId?.let { id -> config.profiles.firstOrNull { it.id == id } }
-        return SimPolicyCodec.encode(
-            SimHideConfig(
-                profiles = listOfNotNull(profile),
-                appPolicies = listOf(policy),
+        }
+        val wifiPolicy = config.wifiPolicies.firstOrNull {
+            it.uid == callerUid && it.packageName == callerPackage
+        }
+        if (simPolicy == null && wifiPolicy == null) return ""
+        val simProfile = simPolicy?.profileId?.let { id -> config.simProfiles.firstOrNull { it.id == id } }
+        val wifiProfile = wifiPolicy?.profileId?.let { id -> config.wifiProfiles.firstOrNull { it.id == id } }
+        return ConfigCodec.encode(
+            HideConfig(
+                simProfiles = listOfNotNull(simProfile),
+                simPolicies = listOfNotNull(simPolicy),
+                wifiProfiles = listOfNotNull(wifiProfile),
+                wifiPolicies = listOfNotNull(wifiPolicy),
             ),
         )
     }

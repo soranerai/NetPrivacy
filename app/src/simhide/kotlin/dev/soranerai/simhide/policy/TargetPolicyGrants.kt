@@ -4,23 +4,21 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import dev.soranerai.simhide.data.SimConfigStore
-import dev.soranerai.simhide.model.AppSimPolicy
 
 /** Maintains the narrow URI visibility grants required by Android 11+. */
 internal class TargetPolicyGrants(context: Context) {
     private val context = context.applicationContext
     private val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
 
-    fun sync(previous: List<AppSimPolicy>, current: List<AppSimPolicy>): Result<Unit> = runCatching {
-        val activePackages = current.mapTo(mutableSetOf()) { it.packageName }
-        previous.asSequence()
-            .map { it.packageName }
+    fun sync(previousPackages: Set<String>, currentPackages: Set<String>): Result<Unit> = runCatching {
+        currentPackages.toSet().let { activePackages ->
+        previousPackages.asSequence()
             .filterNot(activePackages::contains)
-            .distinct()
             .forEach { context.revokeUriPermission(it, PolicyProvider.POLICY_URI, flags) }
 
         activePackages.forEach {
             context.grantUriPermission(it, PolicyProvider.POLICY_URI, flags)
+        }
         }
     }
 }

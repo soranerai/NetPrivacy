@@ -7,6 +7,7 @@ import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import dev.soranerai.simhide.hooks.TargetTelephonyHooks
+import dev.soranerai.simhide.hooks.TargetWifiHooks
 import dev.soranerai.simhide.policy.TargetProcessPolicyBridge
 
 /** Installs hooks only inside applications explicitly selected in LSPosed scope. */
@@ -16,6 +17,7 @@ class SimHideHookEntry : IXposedHookLoadPackage {
 
         SimHideLog.info("installing app-only hooks for ${lpparam.packageName} (${lpparam.processName})")
         TargetTelephonyHooks.install(lpparam.classLoader)
+        TargetWifiHooks.install(lpparam.classLoader)
         XposedBridge.hookAllMethods(Application::class.java, "attach", object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam) {
                 val context = param.args.firstOrNull() as? Context ?: return
