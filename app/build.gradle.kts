@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.soranerai.simhide"
+    namespace = "dev.soranerai.netprivacy"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.soranerai.simhide"
+        applicationId = "dev.soranerai.netprivacy"
         minSdk = 29
         targetSdk = 35
         versionCode = 1
@@ -46,12 +46,12 @@ android {
 
     sourceSets {
         getByName("main") {
-            manifest.srcFile("src/simhide/AndroidManifest.xml")
-            java.setSrcDirs(listOf("src/simhide/kotlin"))
-            res.setSrcDirs(listOf("src/simhide/res"))
-            assets.setSrcDirs(listOf("src/simhide/assets"))
+            manifest.srcFile("src/netprivacy/AndroidManifest.xml")
+            java.setSrcDirs(listOf("src/netprivacy/kotlin"))
+            res.setSrcDirs(listOf("src/netprivacy/res"))
+            assets.setSrcDirs(listOf("src/netprivacy/assets"))
         }
-        getByName("test").java.setSrcDirs(listOf("src/simhideTest/kotlin"))
+        getByName("test").java.setSrcDirs(listOf("src/netprivacyTest/kotlin"))
     }
 }
 

@@ -1,4 +1,4 @@
-# SIM Hide
+# NetPrivacy
 
 LSPosed-модуль и Android-приложение для скрытия или согласованной подмены
 SIM-данных для выбранных приложений.
@@ -9,7 +9,7 @@ SIM-данных для выбранных приложений.
 - отдельный режим и профиль для каждого приложения;
 - встроенные SIM-пресеты и создание пользовательских;
 - атомарная policy-конфигурация без kernel-модуля;
-- `system_server` читает policy из `/data/system/simhide/policy.json`;
+- `system_server` читает policy из `/data/system/netprivacy/policy.json`;
 - `com.android.phone` получает policy только через закрытый Binder bridge.
 
 ## Сборка
