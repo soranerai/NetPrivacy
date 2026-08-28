@@ -5,6 +5,11 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val releaseKeystorePath = providers.environmentVariable("ANDROID_KEYSTORE_FILE").orNull
+val releaseKeystorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+
 android {
     namespace = "dev.soranerai.netprivacy"
     compileSdk = 35
@@ -13,8 +18,8 @@ android {
         applicationId = "dev.soranerai.netprivacy"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-dev"
+        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toIntOrNull() ?: 1
+        versionName = providers.environmentVariable("VERSION_NAME").orNull ?: "0.1.0-dev"
     }
 
     buildFeatures {
@@ -32,6 +37,20 @@ android {
             )
         }
         debug {
+        }
+    }
+
+    if (releaseKeystorePath != null && releaseKeystorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+        buildTypes.named("release") {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

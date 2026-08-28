@@ -39,6 +39,10 @@ asks for them, so both apps remain visually consistent.
 Run `./gradlew :app:assembleDebug` from the repository root. The debug APK is
 written to `app/build/outputs/apk/debug/app-debug.apk`.
 
+Tagged releases (`v*`) are built by `.github/workflows/release.yml`. Configure
+the four `ANDROID_KEYSTORE_*` repository secrets listed in that workflow; the
+pipeline then signs and publishes `app-release.apk`.
+
 ## Maintenance notes
 
 - Keep all display text in resources and update both English and Russian files.
