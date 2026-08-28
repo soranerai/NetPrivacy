@@ -1,6 +1,7 @@
-# Keep Xposed entry points — LSPosed loads these by reflection via assets/xposed_init
--keep class dev.soranerai.vpnhidenext.HookEntry { *; }
--keepnames class dev.soranerai.vpnhidenext.** { *; }
+# LSPosed discovers the entry point only from assets/xposed_init. R8 cannot see
+# that reference, so keep the module's code and names intact in release APKs.
+# This also protects reflection-based Android API hooks from being stripped.
+-keep class dev.soranerai.netprivacy.** { *; }
 
 # Keep Xposed API types
 -keep class de.robv.android.xposed.** { *; }

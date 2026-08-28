@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,10 +7,26 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
-val releaseKeystorePath = providers.environmentVariable("ANDROID_KEYSTORE_FILE").orNull
-val releaseKeystorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
-val releaseKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
-val releaseKeyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { stream ->
+            load(stream)
+        }
+    }
+}
+
+val releaseKeystorePath: String? = providers.environmentVariable("ANDROID_KEYSTORE_FILE").orNull
+    ?: keystoreProperties.getProperty("storeFile")?.let { path ->
+        val fRoot = rootProject.file(path)
+        if (fRoot.exists()) fRoot.absolutePath else file(path).takeIf { it.exists() }?.absolutePath
+    }
+val releaseKeystorePassword: String? = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
+    ?: keystoreProperties.getProperty("password")
+val releaseKeyAlias: String? = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
+    ?: keystoreProperties.getProperty("keyAlias")
+val releaseKeyPassword: String? = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+    ?: keystoreProperties.getProperty("password")
 
 android {
     namespace = "dev.soranerai.netprivacy"
