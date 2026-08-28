@@ -20,6 +20,8 @@ SIM profile to individual selected applications. It targets Android 10+ (min SDK
   app processes through the LSPosed entry point (`NetPrivacyHookEntry.kt`). Wi-Fi
   covers `WifiInfo` identity/link getters, `DhcpInfo`, and the Wi-Fi
   interface's `LinkProperties` address/DNS getters.
+- `proguard-rules.pro` must keep `dev.soranerai.netprivacy.**`: LSPosed loads
+  the entry class from `assets/xposed_init`, which R8 otherwise treats as unused.
 - App resources live under `app/src/netprivacy/res`. English is the default in
   `values/strings.xml`; Russian is in `values-ru/strings.xml`.
 
