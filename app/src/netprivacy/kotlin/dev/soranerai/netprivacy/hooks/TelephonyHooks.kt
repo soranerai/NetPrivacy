@@ -1,6 +1,7 @@
 package dev.soranerai.netprivacy.hooks
 
 import android.telephony.TelephonyManager
+import android.telephony.SubscriptionManager
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import dev.soranerai.netprivacy.NetPrivacyLog
@@ -11,6 +12,7 @@ import dev.soranerai.netprivacy.model.SimVisibilityMode
 import dev.soranerai.netprivacy.policy.PolicySnapshot
 import dev.soranerai.netprivacy.policy.TargetProcessPolicyBridge
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 
 /** Android 16 client-side hooks. No telephony or system process is required. */
 object TargetTelephonyHooks {
@@ -51,6 +53,9 @@ object TargetTelephonyHooks {
         }
         hookBefore(telephony, setOf("getAllCellInfo")) { policy, param ->
             if (policy.filters.cellInfo) param.result = emptyList<Any>()
+        }
+        hookBefore(telephony, setOf("requestCellInfoUpdate")) { policy, param ->
+            if (policy.filters.cellInfo) deliverEmptyCellInfo(param)
         }
         hookBefore(telephony, setOf("getCellLocation")) { policy, param ->
             if (policy.filters.cellInfo) param.result = null
@@ -99,6 +104,9 @@ object TargetTelephonyHooks {
                 param.result = if (policy.mode == SimVisibilityMode.HIDE) 0 else 1
             }
         }
+        hookBefore(clazz, setOf("getDefaultDataSubscriptionId", "getActiveDataSubscriptionId")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.subscriptionId()
+        }
         hookBefore(clazz, setOf("getPhoneNumber")) { policy, param ->
             if (policy.filters.identifiers || policy.filters.subscription) param.result = policy.phoneNumber()
         }
@@ -129,6 +137,16 @@ object TargetTelephonyHooks {
         }
         hookBefore(clazz, setOf("getNumber")) { policy, param ->
             if (policy.filters.identifiers || policy.filters.subscription) param.result = policy.phoneNumber()
+        }
+        hookBefore(clazz, setOf("getSubscriptionId")) { policy, param ->
+            if (policy.filters.subscription) param.result = policy.subscriptionId()
+        }
+        hookBefore(clazz, setOf("getSimSlotIndex")) { policy, param ->
+            if (policy.filters.subscription) param.result = if (policy.mode == SimVisibilityMode.HIDE) {
+                SubscriptionManager.INVALID_SIM_SLOT_INDEX
+            } else {
+                SYNTHETIC_SIM_SLOT_INDEX
+            }
         }
     }
 
@@ -161,6 +179,23 @@ object TargetTelephonyHooks {
     private fun logHit(method: String) {
         if (loggedHits.add(method)) NetPrivacyLog.info("first policy hit: $method")
     }
+
+    /**
+     * RKNHardering uses this asynchronous API instead of getAllCellInfo().  Returning an
+     * empty callback result prevents it from receiving the physical cell's MCC/MNC and ID.
+     */
+    private fun deliverEmptyCellInfo(param: XC_MethodHook.MethodHookParam) {
+        val callback = param.args.filterIsInstance<TelephonyManager.CellInfoCallback>().firstOrNull()
+        val executor = param.args.filterIsInstance<Executor>().firstOrNull()
+        param.result = null // requestCellInfoUpdate is void; do not call telephony service.
+        if (callback == null) return
+        runCatching {
+            val result = Runnable { callback.onCellInfo(mutableListOf()) }
+            if (executor != null) executor.execute(result) else result.run()
+        }.onFailure { NetPrivacyLog.warn("unable to deliver filtered cell info", it) }
+    }
+
+    private const val SYNTHETIC_SIM_SLOT_INDEX = 0
 }
 
 private data class EffectivePolicy(
@@ -179,6 +214,16 @@ private data class EffectivePolicy(
         SimNetworkType.UMTS -> TelephonyManager.NETWORK_TYPE_UMTS
         SimNetworkType.NR -> TelephonyManager.NETWORK_TYPE_NR
         else -> TelephonyManager.NETWORK_TYPE_LTE
+    }
+
+    fun subscriptionId() = if (mode == SimVisibilityMode.HIDE) {
+        SubscriptionManager.INVALID_SUBSCRIPTION_ID
+    } else {
+        SYNTHETIC_SUBSCRIPTION_ID
+    }
+
+    private companion object {
+        const val SYNTHETIC_SUBSCRIPTION_ID = 1
     }
 }
 
